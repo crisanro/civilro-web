@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BookOpen, Award, CheckCircle, Settings, LogOut } from "lucide-react"; // Añadimos LogOut
-import CourseCard from "@/components/CourseCard"; 
+import { BookOpen, Award, CheckCircle, Settings, LogOut } from "lucide-react";
+import FormularioPerfil from "@/components/dashboard/FormularioPerfil";
+import FcmHandler from "@/components/dashboard/FcmHandler"; // <--- IMPORTAMOS EL HANDLER
 
 export default async function Dashboard() {
   const cookieStore = await cookies();
@@ -11,16 +12,13 @@ export default async function Dashboard() {
   if (!sessionCookie) redirect("/login");
   const { email } = JSON.parse(sessionCookie.value);
 
-  // 2. Obtener Usuario con sus Progresos y Certificados
+  // 1. Obtener Usuario con datos reales (YA DESCOMENTADO)
   const user = await prisma.user.findUnique({
     where: { email: email },
-    // Si aún no has agregado estas tablas al schema, coméntalas temporalmente
-    /*
     include: {
       progresos: true,
       certificados: true
     }
-    */
   });
 
   if (!user) redirect("/login?error=user_not_found");
@@ -28,7 +26,7 @@ export default async function Dashboard() {
   const userProgresos = user.progresos || []; 
   const userCertificados = user.certificados || [];
 
-  // 3. Cursos según el plan del usuario
+  // 2. Cursos disponibles (Lógica de planes)
   const cursosDisponibles = await prisma.curso.findMany({
     where: {
       publicado: true,
@@ -44,7 +42,7 @@ export default async function Dashboard() {
     }
   });
 
-  // 4. Calcular Métricas Reales
+  // 3. Métricas
   const stats = {
     cursosIniciados: cursosDisponibles.filter(curso => 
       curso.lecciones.some(l => userProgresos.find(p => p.leccionId === l.id))
@@ -55,9 +53,12 @@ export default async function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-50 pt-28 pb-20 px-6">
+      {/* --- MAGIA DE FIREBASE --- */}
+      <FcmHandler userEmail={user.email} /> 
+      
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* HEADER Y ACCIONES DE LA CUENTA */}
+        {/* HEADER */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">
@@ -73,7 +74,6 @@ export default async function Dashboard() {
               Plan {user.plan}
             </div>
             
-            {/* LÓGICA COMERCIAL: Gestionar (Stripe) vs Mejorar Plan */}
             {user.stripeCustomerId ? (
               <form action="/api/stripe/portal" method="POST">
                 <input type="hidden" name="email" value={user.email} />
@@ -89,7 +89,6 @@ export default async function Dashboard() {
               </a>
             )}
 
-            {/* BOTÓN DE CERRAR SESIÓN (Sin usar JavaScript del lado del cliente) */}
             <form action="/api/auth/logout" method="POST">
               <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
                 <LogOut className="w-4 h-4" />
@@ -99,90 +98,21 @@ export default async function Dashboard() {
           </div>
         </header>
 
-        {/* TARJETAS DE MÉTRICAS (KPIs) */}
+        {/* CONFIGURACIÓN DE PERFIL */}
+        <section>
+          <h2 className="text-xl font-bold text-slate-900 mb-4 px-2">Configuración de Perfil</h2>
+          <FormularioPerfil usuario={user} />
+        </section>
+
+        {/* KPIs (TARJETAS) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600">
-              <BookOpen className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="text-3xl font-black text-slate-900">{stats.cursosIniciados}</p>
-              <p className="text-sm font-medium text-slate-500">Cursos Activos</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-600">
-              <CheckCircle className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="text-3xl font-black text-slate-900">{stats.leccionesTerminadas}</p>
-              <p className="text-sm font-medium text-slate-500">Lecciones Completadas</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
-              <Award className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="text-3xl font-black text-slate-900">{stats.certificados}</p>
-              <p className="text-sm font-medium text-slate-500">Certificados Obtenidos</p>
-            </div>
-          </div>
+           {/* ... (Aquí va tu código de métricas que ya está bien) ... */}
         </div>
         
-        {/* LISTA DE CURSOS CON PROGRESO */}
+        {/* RUTA DE APRENDIZAJE */}
         <section>
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Tu Ruta de Aprendizaje</h2>
-          
-          {cursosDisponibles.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {cursosDisponibles.map((curso) => {
-                const totalLecciones = curso.lecciones.length;
-                const leccionesTerminadas = curso.lecciones.filter(l => 
-                  userProgresos.some(p => p.leccionId === l.id)
-                ).length;
-                
-                const progreso = totalLecciones === 0 ? 0 : Math.round((leccionesTerminadas / totalLecciones) * 100);
-
-                return (
-                  <div key={curso.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
-                    {progreso === 100 && (
-                      <div className="absolute top-4 right-4 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                        <Award className="w-3 h-3" /> Terminado
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-2 block">
-                        {curso.categoria?.nombre || "General"}
-                      </span>
-                      <h3 className="font-bold text-slate-900 text-lg mb-2 pr-10 leading-tight">{curso.titulo}</h3>
-                      <p className="text-sm text-slate-500 mb-6">{leccionesTerminadas} de {totalLecciones} lecciones</p>
-                    </div>
-                    
-                    <div>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5 mb-4 overflow-hidden">
-                        <div 
-                          className={`h-2.5 rounded-full transition-all duration-1000 ${progreso === 100 ? 'bg-green-500' : 'bg-orange-500'}`} 
-                          style={{ width: `${progreso}%` }}
-                        ></div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-700">{progreso}%</span>
-                        <a href={`/cursos/${curso.slug}`} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors">
-                          {progreso === 100 ? 'Repasar' : 'Continuar'}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-              <p className="text-slate-400">No hay cursos disponibles para tu plan actual.</p>
-            </div>
-          )}
+          {/* ... (Aquí va tu código de cursos que ya está bien) ... */}
         </section>
       </div>
     </main>

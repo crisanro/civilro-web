@@ -8,7 +8,7 @@ export async function crearCurso(formData) {
   const titulo = formData.get("titulo");
   const slug = formData.get("slug");
   const descripcion = formData.get("descripcion");
-  const resumen = formData.get("resumen"); // <--- NUEVO
+  const resumen = formData.get("resumen");
   const nivel = formData.get("nivel");
   const accesoMinimo = formData.get("accesoMinimo");
   const categoriaId = parseInt(formData.get("categoriaId"));
@@ -20,7 +20,7 @@ export async function crearCurso(formData) {
       titulo,
       slug,
       descripcion,
-      resumen, // <--- GUARDADO
+      resumen,
       nivel,
       accesoMinimo,
       categoriaId,
@@ -30,7 +30,7 @@ export async function crearCurso(formData) {
   });
 
   revalidatePath("/admin/cursos");
-  revalidatePath("/cursos"); // Revalidamos la lista pública de cursos
+  revalidatePath("/cursos");
   redirect("/admin/cursos");
 }
 
@@ -40,12 +40,12 @@ export async function actualizarCurso(formData) {
   const titulo = formData.get("titulo");
   const slug = formData.get("slug");
   const descripcion = formData.get("descripcion");
-  const resumen = formData.get("resumen"); // <--- NUEVO
-  const nivel = formData.get("nivel");     // <--- NUEVO (Faltaba en tu anterior)
+  const resumen = formData.get("resumen");
+  const nivel = formData.get("nivel");
   const imagenUrl = formData.get("imagenUrl");
   const categoriaId = parseInt(formData.get("categoriaId"));
   const accesoMinimo = formData.get("accesoMinimo");
-  const publicado = formData.get("publicado") === "on"; // <--- NUEVO
+  const publicado = formData.get("publicado") === "on";
 
   await prisma.curso.update({
     where: { id },
@@ -53,12 +53,12 @@ export async function actualizarCurso(formData) {
       titulo,
       slug,
       descripcion,
-      resumen,   // <--- ACTUALIZADO
-      nivel,     // <--- ACTUALIZADO
+      resumen,
+      nivel,
       imagenUrl,
       categoriaId,
       accesoMinimo,
-      publicado, // <--- ACTUALIZADO
+      publicado,
     },
   });
 
@@ -68,25 +68,30 @@ export async function actualizarCurso(formData) {
   redirect("/admin/cursos");
 }
 
-// 3. ELIMINAR CURSO
+// 3. ELIMINAR CURSO (Con manejo de errores)
 export async function eliminarCurso(id) {
-  const cursoId = parseInt(id);
+  try {
+    const cursoId = parseInt(id);
 
-  // 1. Limpiamos lecciones (y recursos de lecciones si fuera necesario)
-  // Nota: Si tienes recursos amarrados a lecciones, borra primero recursos
-  await prisma.recurso.deleteMany({
-    where: { leccion: { cursoId: cursoId } }
-  });
+    // 1. Borrado en cascada manual (Prisma)
+    await prisma.recurso.deleteMany({
+      where: { leccion: { cursoId: cursoId } }
+    });
 
-  await prisma.leccion.deleteMany({
-    where: { cursoId: cursoId }
-  });
+    await prisma.leccion.deleteMany({
+      where: { cursoId: cursoId }
+    });
 
-  // 2. Finalmente borramos el curso
-  await prisma.curso.delete({
-    where: { id: cursoId },
-  });
+    // 2. Borrar el curso
+    await prisma.curso.delete({
+      where: { id: cursoId },
+    });
 
-  revalidatePath("/admin/cursos");
-  revalidatePath("/cursos");
+    revalidatePath("/admin/cursos");
+    revalidatePath("/cursos");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar curso:", error);
+    return { success: false, error: "Error de integridad al eliminar." };
+  }
 }

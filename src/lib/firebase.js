@@ -1,5 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, EmailAuthProvider } from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -10,6 +11,24 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// 1. Inicializar con Singleton (Evita duplicados)
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// 2. Exportar Auth
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// 3. Exportar Messaging con validación de Cliente
+// (Messaging solo funciona en el navegador)
+export const getFcmMessaging = async () => {
+  try {
+    const supported = await isSupported();
+    if (supported) return getMessaging(app);
+    return null;
+  } catch (err) {
+    console.error("Messaging no soportado:", err);
+    return null;
+  }
+};
+
+export default app;

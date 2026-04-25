@@ -51,3 +51,18 @@ export async function crearPost(formData) {
   revalidatePath("/admin/blog");
   redirect("/admin/blog");
 }
+
+export async function eliminarPost(id) {
+  try {
+    await prisma.post.delete({
+      where: { id: parseInt(id) },
+    });
+
+    // Revalidamos la ruta para que el post desaparezca de la lista inmediatamente
+    revalidatePath("/admin/blog");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar el post:", error);
+    return { success: false, error: "No se pudo eliminar el artículo." };
+  }
+}

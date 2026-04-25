@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { Plus, Edit, Trash2, MessageSquare, Eye } from "lucide-react";
+import { Plus, Edit, MessageSquare, Eye } from "lucide-react";
+import { eliminarPost } from "@/actions/blog"; // Importamos la acción que acabamos de crear
+import BotonEliminarUniversal from "@/components/admin/BotonEliminarUniversal";
 
 export default async function AdminBlog() {
   const posts = await prisma.post.findMany({
@@ -57,15 +59,24 @@ export default async function AdminBlog() {
                 </td>
                 <td className="p-6">
                   <div className="flex justify-end gap-2">
+                    {/* Ver Post */}
                     <Link href={`/blog/${post.slug}`} target="_blank" className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-blue-600 transition-all border border-transparent hover:border-slate-100">
                       <Eye className="w-5 h-5" />
                     </Link>
+                    
+                    {/* Editar Post */}
                     <Link href={`/admin/blog/editar/${post.id}`} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-orange-600 transition-all border border-transparent hover:border-slate-100">
                       <Edit className="w-5 h-5" />
                     </Link>
-                    <button className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-red-600 transition-all border border-transparent hover:border-slate-100">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+
+                    {/* Eliminar Post con Confirmación de Slug */}
+                    <BotonEliminarUniversal 
+                      id={post.id}
+                      confirmText={post.slug}
+                      onConfirm={eliminarPost}
+                      titulo="¿Eliminar este artículo?"
+                      mensaje="Esta acción no se puede deshacer. Para confirmar la eliminación definitiva, escribe el slug del post:"
+                    />
                   </div>
                 </td>
               </tr>

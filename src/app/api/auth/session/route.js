@@ -1,14 +1,27 @@
-import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth"; 
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("civilro_session");
+  try {
+    const user = await getSession(); // Esta función ya hace el JSON.parse internamente
 
-  if (!session) return NextResponse.json({ loggedIn: false });
+    if (!user) {
+      return NextResponse.json({ loggedIn: false });
+    }
 
-  return NextResponse.json({ 
-    loggedIn: true, 
-    user: JSON.parse(session.value) 
-  });
+    // Devolvemos los datos que vienen directamente de la base de datos
+    return NextResponse.json({ 
+      loggedIn: true, 
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        rol: user.rol, // Asegúrate que en tu Prisma se llame 'rol'
+        plan: user.plan
+      }
+    });
+  } catch (error) {
+    console.error("Error en API session:", error);
+    return NextResponse.json({ loggedIn: false }, { status: 500 });
+  }
 }

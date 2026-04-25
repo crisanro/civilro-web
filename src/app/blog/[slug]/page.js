@@ -7,6 +7,8 @@ import CommentSection from "@/components/CommentSection";
 import { Clock, Lock, User, Calendar } from "lucide-react";
 import rehypeRaw from 'rehype-raw';
 import rehypeSlug from 'rehype-slug';
+import { serialize } from 'next-mdx-remote/serialize';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 export default async function DetallePost({ params }) {
   const { slug } = await params;
@@ -34,6 +36,19 @@ export default async function DetallePost({ params }) {
 
   if (!post) notFound();
 
+  const mdxSource = await serialize(
+    post.contenido
+      .replaceAll('\\n', '\n')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/^\s+(<[A-Z][a-zA-Z]*)/gm, '$1'),
+    {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm],
+        rehypePlugins: [rehypeSlug],
+      },
+    }
+  );
   // --- CONFIGURACIÓN DE COMPONENTES PARA EL BLOG (Igual que el tuyo) ---
   const components = {
     h1: (props) => <h1 className="text-5xl font-black text-slate-900 mb-8 mt-12 tracking-tighter leading-tight" {...props} />,
@@ -97,15 +112,7 @@ export default async function DetallePost({ params }) {
 
         {/* CONTENIDO DEL POST */}
         <div className="bg-white rounded-[3rem] p-10 md:p-16 shadow-xl shadow-slate-200/50 border border-white mb-20">
-          <div className="prose prose-slate max-w-none">
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm]} 
-              rehypePlugins={[rehypeSlug, rehypeRaw]}
-              components={components}
-            >
-              {post.contenido.replaceAll('\\n', '\n')}
-            </ReactMarkdown>
-          </div>
+          <MarkdownRenderer source={mdxSource} />
         </div>
 
         {/* SECCIÓN DE COMENTARIOS */}

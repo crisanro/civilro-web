@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { generarUrlFirmada } from "@/lib/bunny";
+import { generarUrlFirmada, detectarTipoVideo } from "@/lib/bunny";
+import { serialize } from 'next-mdx-remote/serialize'; 
+import remarkGfm from 'remark-gfm';
+import rehypeSlug from 'rehype-slug';
 
 // Componentes Reutilizables
 import VideoPlayer from "@/components/VideoPlayer";
 import SidebarCurriculum from "@/components/SidebarCurriculum";
 import CommentSection from "@/components/CommentSection";
-import MarkdownRenderer from "@/components/MarkdownRenderer"; // <--- Tu componente maestro
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 // Iconos
 import { Clock, Lock, FileText, Download, PlayCircle, GraduationCap } from "lucide-react";
@@ -40,31 +43,45 @@ export default async function LessonPage({ params }) {
   const nivelRequerido = leccion.curso.accesoMinimo || "COMUNIDAD";
   const tieneAcceso = niveles[userPlan] >= niveles[nivelRequerido];
 
-  // Redirección si no tiene permiso
   if (!tieneAcceso && !esAbierta) {
     redirect(`/cursos/${slug}?error=necesitas-plan`);
   }
 
-  // URL de Video (Protegida vía Bunny.net)
-  const videoUrlProtegida = leccion.videoUrl ? generarUrlFirmada(leccion.videoUrl) : null;
+  // 4. URL de Video + Serialize MDX en paralelo 👈 NUEVO
+  const [video, mdxSource] = await Promise.all([
+    Promise.resolve(
+      leccion.videoUrl ? detectarTipoVideo(leccion.videoUrl, false) : null
+    ),
+    serialize(
+      (leccion.contenido || '')
+        .replaceAll('\\n', '\n')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/^\s+(<[A-Z][a-zA-Z]*)/gm, '$1'),
+      {
+        mdxOptions: {
+          remarkPlugins: [remarkGfm],
+          rehypePlugins: [rehypeSlug],
+        },
+      }
+    )
+  ]);
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 pt-20">
       
-      {/* --- COLUMNA PRINCIPAL (CONTENIDO) --- */}
+      {/* --- COLUMNA PRINCIPAL --- */}
       <div className="flex-1 lg:overflow-y-auto pb-20">
         
-        {/* Banner Informativo para Clases Gratis */}
         {!tieneAcceso && esAbierta && (
           <div className="bg-orange-600 text-white text-center py-3 text-[10px] font-black uppercase tracking-widest z-20 relative">
             🚀 Estás viendo una clase abierta. Únete al plan {nivelRequerido} para completar el curso.
           </div>
         )}
 
-        {/* Reproductor de Video */}
         <div className="aspect-video bg-slate-900 w-full flex items-center justify-center border-b border-slate-200 shadow-2xl relative z-10">
-          {videoUrlProtegida ? (
-            <VideoPlayer url={videoUrlProtegida} />
+          {video ? (
+            <VideoPlayer video={video} />
           ) : (
             <div className="flex flex-col items-center gap-4 text-slate-500">
               <PlayCircle className="w-12 h-12 animate-pulse" />
@@ -73,10 +90,8 @@ export default async function LessonPage({ params }) {
           )}
         </div>
 
-        {/* Contenido Escrito de la Lección */}
         <div className="max-w-4xl mx-auto p-6 md:p-12">
           
-          {/* Cabecera de la Lección */}
           <header className="mb-12">
             <div className="flex items-center gap-3 mb-4">
               <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter">
@@ -93,12 +108,11 @@ export default async function LessonPage({ params }) {
             </h1>
           </header>
           
-          {/* Renderizado Maestro de Markdown */}
+          {/* 👇 Cambia content por source */}
           <div className="bg-white rounded-[3rem] p-10 md:p-16 shadow-xl shadow-slate-200/50 border border-white mb-20">
-            <MarkdownRenderer content={leccion.contenido} />
+            <MarkdownRenderer source={mdxSource} />
           </div>
 
-          {/* Sección de Consultas Técnicas */}
           <section id="foro" className="pt-10 border-t border-slate-200">
             <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4 tracking-tighter italic uppercase">
                Consultas Técnicas
@@ -118,11 +132,10 @@ export default async function LessonPage({ params }) {
         </div>
       </div>
 
-      {/* --- COLUMNA LATERAL (SIDEBAR) --- */}
+      {/* --- SIDEBAR --- */}
       <aside className="w-full lg:w-[450px] bg-slate-100/50 border-l border-slate-200 p-8 overflow-y-auto">
         <div className="sticky top-10 space-y-12">
           
-          {/* Listado de Recursos Descargables */}
           {tieneAcceso && leccion.recursos.length > 0 && (
             <div>
               <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-[0.3em] mb-6 flex items-center gap-2">
@@ -151,7 +164,6 @@ export default async function LessonPage({ params }) {
             </div>
           )}
 
-          {/* Navegación del Curso (Curriculum) */}
           <div>
             <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-[0.3em] mb-6 flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-orange-600" /> Progreso del Curso
