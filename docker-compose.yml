@@ -4,6 +4,6 @@ services:
     container_name: civilro_web
     restart: always
     ports:
-      - "3000:3000"
+      - "3003:3000"
     env_file:
       - .env  # Docker leerá automáticamente todo lo que esté dentro del archivo
