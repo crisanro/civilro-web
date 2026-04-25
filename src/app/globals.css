@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a; /* Slate 900 */
+  --accent: #ea580c;     /* Naranja CivilRo (Orange 600) */
+  --secondary: #1e40af;  /* Azul Academia (Blue 800) */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-orange: var(--accent);
+  --color-brand-blue: var(--secondary);
+}
+
+html {
+  /* Esto hace que los links con "#" (anclas) se deslicen suavemente */
+  scroll-behavior: smooth; 
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fondos para diferenciar secciones sin usar gris aburrido */
+.bg-subtle {
+  background-color: #f8fafc; /* Slate 50 */
+}
+
+/* Mejora la lectura de los textos largos */
+p {
+  color: #334155; /* Slate 700 */
+  line-height: 1.65;
+}
+
+/* Estilo para links dentro de textos de blog o políticas */
+.prose a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: all 0.2s;
+}
+
+.prose a:hover {
+  color: var(--secondary);
+}

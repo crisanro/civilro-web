@@ -1,0 +1,201 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- SISTEMA DE USUARIOS Y SUSCRIPCIONES ---
+
+model VerificationToken {
+  id        Int      @id @default(autoincrement())
+  email     String
+  token     String   // Aquí guardaremos los 6 dígitos
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([email, token])
+}
+
+enum Plan {
+  FREE        // Solo blog y vista previa
+  COMUNIDAD   // Pago único $4.99 (Acceso base de por vida)
+  UNIVERSIDAD // Suscripción anual $79
+  PRO         // Suscripción anual $197
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  uid              String   @unique // El ID que viene de Firebase
+  email            String   @unique
+  nombre           String?
+  imagenUrl        String?
+  plan             Plan     @default(FREE)
+  rol              String   @default("USER")
+  
+  // Para las Notificaciones Push
+  fcmToken         String?  @db.Text
+  
+  // Para Stripe (opcional pero recomendado)
+  stripeCustomerId String?  @unique 
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relaciones
+  comentarios      Comentario[]
+  comentariosLec   ComentarioLeccion[] // Añadido para los comentarios de las lecciones
+  progresos        ProgresoLeccion[]
+  certificados     Certificado[]
+}
+
+// --- ACADEMIA (CURSOS Y LECCIONES) ---
+
+model Categoria {
+  id      Int     @id @default(autoincrement())
+  nombre  String  @unique
+  cursos  Curso[]
+}
+
+model Curso {
+  id           Int        @id @default(autoincrement())
+  titulo       String
+  slug         String     @unique
+  descripcion  String?    @db.Text
+  resumen      String?  @db.Text
+  imagenUrl    String?
+  
+  accesoMinimo Plan       @default(PRO)
+  nivel        String     // Ej: "Básico", "Intermedio", "Avanzado"
+  publicado    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  
+  categoriaId  Int
+  categoria    Categoria  @relation(fields: [categoriaId], references: [id])
+  lecciones    Leccion[]
+  certificados Certificado[] // Relación añadida para que Curso sepa de sus certificados
+}
+
+model Leccion {
+  id          Int                 @id @default(autoincrement())
+  orden       Int
+  titulo      String
+  videoUrl    String?
+  duracion    String?
+  esFree      Boolean             @default(false)
+  contenido   String?             @db.Text
+  
+  // RELACIÓN ACTUALIZADA
+  recursos    Recurso[] 
+  
+  cursoId     Int
+  curso       Curso               @relation(fields: [cursoId], references: [id])
+  
+  comentarios ComentarioLeccion[]
+  progresos   ProgresoLeccion[]
+}
+
+// --- RECURSOS UNIVERSALES (SISTEMA CENTRALIZADO) ---
+
+model Recurso {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  url       String
+  tipo      String?  // Ej: "PDF", "EXCEL", "ZIP", "DWG"
+  peso      String?  // Ej: "2.5 MB"
+  
+  // Relación con Lección (Opcional)
+  leccionId Int?
+  leccion   Leccion? @relation(fields: [leccionId], references: [id])
+
+  // Relación con Post de Blog (Opcional)
+  postId    Int?
+  post      Post?    @relation(fields: [postId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+// --- TABLAS DEL DASHBOARD (CORREGIDAS) ---
+
+// Rastrea qué lecciones ha terminado cada usuario
+model ProgresoLeccion {
+  id          String   @id @default(cuid())
+  usuarioId   Int      // CORREGIDO: Ahora es Int para coincidir con User.id
+  leccionId   Int      
+  completado  Boolean  @default(true)
+  fecha       DateTime @default(now())
+
+  // CORREGIDO: Relaciones activadas
+  user        User     @relation(fields: [usuarioId], references: [id])
+  leccion     Leccion  @relation(fields: [leccionId], references: [id])
+
+  @@unique([usuarioId, leccionId]) 
+}
+
+// Guarda los certificados emitidos
+model Certificado {
+  id           String   @id @default(cuid()) 
+  usuarioId    Int      // CORREGIDO: Ahora es Int
+  cursoId      Int
+  fechaEmision DateTime @default(now())
+  urlPdf       String?  
+
+  // CORREGIDO: Relaciones activadas
+  user         User     @relation(fields: [usuarioId], references: [id])
+  curso        Curso    @relation(fields: [cursoId], references: [id])
+}
+
+// Comentarios en Lecciones (Dudas técnicas)
+model ComentarioLeccion {
+  id          Int      @id @default(autoincrement())
+  texto       String   @db.Text
+  fecha       DateTime @default(now())
+  
+  leccionId   Int
+  leccion     Leccion  @relation(fields: [leccionId], references: [id])
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+
+  // --- Lógica de Hilos (Respuestas) ---
+  parentId    Int?     
+  parent      ComentarioLeccion?  @relation("RespuestasLec", fields: [parentId], references: [id])
+  respuestas  ComentarioLeccion[] @relation("RespuestasLec")
+}
+
+// --- CONTENIDO (BLOG Y COMUNIDAD) ---
+
+model Post {
+  id          Int          @id @default(autoincrement())
+  titulo      String
+  slug        String       @unique
+  resumen     String       @db.Text
+  contenido   String       @db.Text 
+  imagenUrl   String?
+  publicado   Boolean      @default(false)
+  fecha       DateTime     @default(now())
+  autor       String       @default("Ing. Cristhian Romero")
+  
+  recursos    Recurso[]
+  
+  comentarios Comentario[]
+}
+
+// Comentarios en el Blog (Comunidad)
+model Comentario {
+  id        Int      @id @default(autoincrement())
+  texto     String   @db.Text
+  fecha     DateTime @default(now())
+  
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id])
+  
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+
+  // --- Lógica de Hilos (Respuestas) ---
+  parentId  Int?     
+  parent    Comentario?  @relation("RespuestasBlog", fields: [parentId], references: [id])
+  respuestas Comentario[] @relation("RespuestasBlog")
+}
